@@ -1,0 +1,256 @@
+package com.weeple.weeple.weeple;
+
+import android.content.Context;
+import android.content.Intent;
+import android.os.AsyncTask;
+import android.os.Bundle;
+import android.support.v7.app.ActionBarActivity;
+import android.util.Log;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.RadioButton;
+import android.widget.Toast;
+
+import java.io.BufferedOutputStream;
+import java.io.BufferedReader;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
+
+public class LoginActivity extends ActionBarActivity {
+
+    String[] authentificationFromStorage;
+    EditText username;
+    EditText password;
+    Button login;
+    String inputUsername;
+    String inputPassword;
+    String access;
+    Intent intent1;
+    Intent intent2;
+    Button register;
+    Intent recoverIntent;
+    Bundle recoverBundle;
+    Boolean infoDeleted = false;
+    String profile;
+    RadioButton radio1;
+    RadioButton radio2;
+    Intent intent3;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_login);
+        recoverIntent = getIntent();
+        recoverBundle = recoverIntent.getExtras();
+        if (recoverBundle != null){
+            infoDeleted = true;
+        }
+        intent1 = new Intent(this, ListActivity.class);
+        intent2 = new Intent(this, RegistrationActivity.class);
+        intent3 = new Intent(this, PoliticianActivity.class);
+        username = (EditText) findViewById(R.id.editText5);
+        password = (EditText) findViewById(R.id.editText6);
+        login = (Button) findViewById(R.id.button2);
+        register = (Button) findViewById(R.id.button3);
+        radio1 = (RadioButton) findViewById(R.id.radio3);
+        radio2 = (RadioButton) findViewById(R.id.radio4);
+
+        //IF AUTH DATA IS IN INTERNAL STORAGE LOGIN ACTIVITY IS SKIPPED
+        try {
+            FileInputStream fis = openFileInput("Weeple_Authentification_Data.txt");
+            InputStreamReader isr = new InputStreamReader(fis);
+            BufferedReader bufferedReader = new BufferedReader(isr);
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = bufferedReader.readLine()) != null) {
+                sb.append(line);
+                Log.e("log_tag 11", line);
+            }
+            authentificationFromStorage = sb.toString().split(",");
+        } catch(Exception e) {
+            Log.e("log_tag 10", "Failed to retrieve data: " + e);
+            if (infoDeleted == true) {
+                Toast.makeText(LoginActivity.this, "You logged out", Toast.LENGTH_LONG).show();
+            }
+        }
+        if (authentificationFromStorage != null){
+            inputUsername = authentificationFromStorage[0];
+            inputPassword = authentificationFromStorage[1];
+            profile = authentificationFromStorage[2];
+            //authentificationData.add(new BasicNameValuePair("username",inputUsername));
+            //authentificationData.add(new BasicNameValuePair("password",inputPassword));
+            try{
+                Log.e("log_tag12","gettingPermission");
+                access = new getPermission().execute(inputUsername, inputPassword).get();
+                //Toast.makeText(getApplicationContext(), access, Toast.LENGTH_LONG).show();
+                Log.e("log_tag13","gotPermission");
+            } catch (Exception e){
+                Log.e("log_tag5","FAILED TO GET PERMISSION RESPONSE" + e);
+            }
+
+            if (access.equals("allowed")){
+                Log.e("log_tag6", "in access");
+                ((MyApplication) this.getApplication()).setUsername(inputUsername);
+                ((MyApplication) this.getApplication()).setPassword(inputPassword);
+                ((MyApplication)getApplicationContext()).setProfile(profile);
+                if (profile.equals("constituent")) {
+                    startActivity(intent1);
+                    finish();
+                } else if (profile.equals("politician")){
+                    startActivity(intent3);
+                    finish();
+                }
+            } else if(access.equals("denied")) {
+                Toast.makeText(LoginActivity.this, "We lost track of your data! Why don't you register again?", Toast.LENGTH_LONG).show();
+            } else {
+                Log.e("log_tag_phpnotworking",access);
+            }
+        }
+
+
+        //IF AUTH DATA IS NOT IN INTERNAL STORAGE, APP STAYS ON LOGIN ACTIVITY
+
+        register.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(intent2);
+            }
+        });
+        login.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (radio1.isChecked()){
+                    profile = "constituent";
+                } else if(radio2.isChecked()){
+                    profile = "politician";
+                } else {
+                    Toast.makeText(getApplicationContext(),"Are you a politician or a constituent?",Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                inputUsername = username.getText().toString();
+                inputPassword = password.getText().toString();
+                //authentificationData.add(new BasicNameValuePair("username",inputUsername));
+                //authentificationData.add(new BasicNameValuePair("password",inputPassword));
+
+                try{
+                    access = new getPermission().execute(inputUsername, inputPassword).get();
+                } catch (Exception e){
+                    Log.e("log_tag5","FAILED TO GET PERMISSION RESPONSE" + e);
+                }
+
+                if (access.equals("allowed")){
+                    Log.e("log_tag6", "in access");
+                    String fileName = "Weeple_Authentification_Data.txt";
+                    String content = inputUsername + "," + inputPassword + "," + profile;
+
+                    FileOutputStream outputStream = null;
+                    try {
+                        outputStream = openFileOutput(fileName, Context.MODE_PRIVATE);
+                        outputStream.write(content.getBytes());
+                        outputStream.close();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                    ((MyApplication) getApplicationContext()).setUsername(inputUsername);
+                    ((MyApplication) getApplicationContext()).setPassword(inputPassword);
+                    ((MyApplication) getApplicationContext()).setProfile(profile);
+                    if (profile.equals("constituent")) {
+                        startActivity(intent1);
+                        finish();
+                    } else if (profile.equals("politician")){
+                        startActivity(intent3);
+                        finish();
+                    }
+                } else if(access.equals("denied")) {
+                    Toast.makeText(getApplicationContext(), "Wrong username or password", Toast.LENGTH_LONG).show();
+                }
+            }
+        });
+    }
+
+    class getPermission extends AsyncTask<String, Void, String> {
+
+
+        @Override
+        protected String doInBackground(String... authdata) {
+            String answer;
+            InputStream is = null;
+            BufferedReader br = null;
+            StringBuilder sb = new StringBuilder();
+            try {
+                URL url = new URL("http://ec2-52-89-196-34.us-west-2.compute.amazonaws.com/Weeple/weeple_login.php");
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setDoOutput(true);
+                OutputStream out = new BufferedOutputStream(conn.getOutputStream());
+                String message = "username="+authdata[0]+"&password="+authdata[1];
+                out.write(message.getBytes());
+                out.flush();
+                out.close();
+                is = conn.getInputStream();
+                int responseCode = conn.getResponseCode();
+                Log.i("log_tag", "POST Response Code :: " + responseCode);
+            } catch (Exception e) {
+                Log.e("log_tag2", "CONNECTION FAILED in Login Activity: " + e);
+            }
+            try {
+                try {
+                    String line;
+                    br = new BufferedReader(new InputStreamReader(is));
+                    while ((line = br.readLine()) != null) {
+                        sb.append(line);
+                    }
+
+                } catch (IOException e) {
+                    e.printStackTrace();
+                } finally {
+                    if (br != null) {
+                        try {
+                            br.close();
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                Log.e("log_tag3", "ERROR IN PARSING RESPONSE: " + e);
+            }
+
+            answer = sb.toString();
+            return answer;
+        }
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        // Inflate the menu; this adds items to the action bar if it is present.
+        getMenuInflater().inflate(R.menu.menu_login, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        // Handle action bar item clicks here. The action bar will
+        // automatically handle clicks on the Home/Up button, so long
+        // as you specify a parent activity in AndroidManifest.xml.
+        int id = item.getItemId();
+
+        //noinspection SimplifiableIfStatement
+        if (id == R.id.action_settings) {
+            return true;
+        }
+
+        return super.onOptionsItemSelected(item);
+    }
+}
